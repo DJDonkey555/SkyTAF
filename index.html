@@ -1,294 +1,242 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>METAR / TAF Quick Access</title>
-  <style>
-    :root {
-      --bg: #0b1220;
-      --panel: #111a2b;
-      --panel-2: #0f1726;
-      --text: #e5eefc;
-      --muted: #9fb2d0;
-      --accent: #4ea1ff;
-      --border: #22314d;
-      --error: #ff6b6b;
-      --ok: #63e6be;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #14213a 0%, var(--bg) 55%);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 24px;
-    }
-
-    .wrap {
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-
-    h1 {
-      margin: 0 0 8px;
-      font-size: 28px;
-      line-height: 1.1;
-    }
-
-    .sub {
-      color: var(--muted);
-      margin-bottom: 20px;
-      font-size: 14px;
-    }
-
-    .bar {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 18px;
-    }
-
-    input {
-      flex: 1 1 220px;
-      min-width: 180px;
-      background: #0b1323;
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 12px;
-      padding: 14px 16px;
-      font-size: 16px;
-      outline: none;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-    }
-
-    input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(78, 161, 255, 0.15);
-    }
-
-    button {
-      border: 0;
-      background: var(--accent);
-      color: #08111f;
-      padding: 14px 18px;
-      border-radius: 12px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: 0.6;
-      cursor: wait;
-    }
-
-    .status {
-      margin: 10px 0 18px;
-      color: var(--muted);
-      min-height: 22px;
-      font-size: 14px;
-    }
-
-    .status.error { color: var(--error); }
-    .status.ok { color: var(--ok); }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
-    }
-
-    .panel {
-      background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent), var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      overflow: hidden;
-      min-height: 320px;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .panel h2 {
-      margin: 0;
-      padding: 14px 16px;
-      background: var(--panel-2);
-      border-bottom: 1px solid var(--border);
-      font-size: 16px;
-      letter-spacing: 0.03em;
-    }
-
-    pre {
-      margin: 0;
-      padding: 16px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 13px;
-      line-height: 1.5;
-      color: #d8e5f8;
-      flex: 1;
-      overflow: auto;
-    }
-
-    .meta {
-      padding: 0 16px 14px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    @media (max-width: 800px) {
-      .grid { grid-template-columns: 1fr; }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick METAR / TAF</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1e24;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            padding: 2rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+        }
+        .search-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        input {
+            flex: 1;
+            padding: 14px 18px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            color: #f0f6fc;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        input:focus {
+            border-color: #58a6ff;
+            box-shadow: 0 0 0 2px rgba(88,166,255,0.3);
+        }
+        input::placeholder {
+            color: #6e7681;
+            letter-spacing: 0;
+        }
+        button {
+            padding: 14px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+        button:hover {
+            background: #2ea043;
+        }
+        .panels {
+            display: flex;
+            gap: 20px;
+        }
+        .panel {
+            flex: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel h2 {
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+            color: #58a6ff;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .panel h2 .icao-tag {
+            background: #21262d;
+            font-size: 0.85rem;
+            font-weight: normal;
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #c9d1d9;
+            margin-left: auto;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #e6edf3;
+            background: transparent;
+            flex: 1;
+        }
+        .error {
+            color: #f85149;
+            font-style: italic;
+        }
+        .loading {
+            color: #6e7681;
+            font-style: italic;
+        }
+        @media (max-width: 600px) {
+            .panels {
+                flex-direction: column;
+            }
+            body {
+                padding: 1rem;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>METAR / TAF Quick Access</h1>
-    <div class="sub">Enter a 4-letter ICAO code. Example: KJFK, EGLL, YSSY, FAOR.</div>
-
-    <div class="bar">
-      <input id="icao" maxlength="4" placeholder="ICAO code" autocomplete="off" spellcheck="false" />
-      <button id="go">Load</button>
+    <div class="container">
+        <div class="search-box">
+            <input type="text" id="icaoInput" placeholder="Enter ICAO code (e.g. KJFK, EGLL)" maxlength="4" autofocus>
+            <button id="fetchBtn">Get Weather</button>
+        </div>
+        <div class="panels">
+            <div class="panel" id="metarPanel">
+                <h2>METAR <span class="icao-tag" id="metarIcao"></span></h2>
+                <pre id="metarText" class="loading">Enter an ICAO code above</pre>
+            </div>
+            <div class="panel" id="tafPanel">
+                <h2>TAF <span class="icao-tag" id="tafIcao"></span></h2>
+                <pre id="tafText" class="loading">Enter an ICAO code above</pre>
+            </div>
+        </div>
     </div>
 
-    <div id="status" class="status">Ready.</div>
+    <script>
+        (function() {
+            'use strict';
 
-    <div class="grid">
-      <section class="panel">
-        <h2>METAR</h2>
-        <pre id="metar">Enter an ICAO code and hit Load.</pre>
-        <div id="metarMeta" class="meta"></div>
-      </section>
+            const input = document.getElementById('icaoInput');
+            const btn = document.getElementById('fetchBtn');
+            const metarText = document.getElementById('metarText');
+            const tafText = document.getElementById('tafText');
+            const metarIcao = document.getElementById('metarIcao');
+            const tafIcao = document.getElementById('tafIcao');
 
-      <section class="panel">
-        <h2>TAF</h2>
-        <pre id="taf">Enter an ICAO code and hit Load.</pre>
-        <div id="tafMeta" class="meta"></div>
-      </section>
-    </div>
-  </div>
+            const METAR_API = 'https://aviationweather.gov/api/data/metar?ids=';
+            const TAF_API = 'https://aviationweather.gov/api/data/taf?ids=';
 
-  <script>
-    const API_BASE = "https://aviationweather.gov/api/data";
-    const PROXY_PREFIX = "https://api.allorigins.win/raw?url=";
+            function setLoading() {
+                metarText.textContent = 'Loading...';
+                metarText.className = 'loading';
+                tafText.textContent = 'Loading...';
+                tafText.className = 'loading';
+                metarIcao.textContent = '';
+                tafIcao.textContent = '';
+            }
 
-    const icaoInput = document.getElementById("icao");
-    const goBtn = document.getElementById("go");
-    const statusEl = document.getElementById("status");
-    const metarEl = document.getElementById("metar");
-    const tafEl = document.getElementById("taf");
-    const metarMeta = document.getElementById("metarMeta");
-    const tafMeta = document.getElementById("tafMeta");
+            function displayError(element, message) {
+                element.textContent = message;
+                element.className = 'error';
+            }
 
-    function setStatus(msg, kind = "") {
-      statusEl.textContent = msg;
-      statusEl.className = kind ? `status ${kind}` : "status";
-    }
+            async function fetchWeather() {
+                let rawIcao = input.value.trim();
+                if (!rawIcao) {
+                    displayError(metarText, 'Please enter an ICAO code.');
+                    displayError(tafText, '');
+                    metarIcao.textContent = '';
+                    tafIcao.textContent = '';
+                    return;
+                }
 
-    function setLoading(isLoading) {
-      goBtn.disabled = isLoading;
-      icaoInput.disabled = isLoading;
-    }
+                const icao = rawIcao.toUpperCase();
+                metarIcao.textContent = icao;
+                tafIcao.textContent = icao;
+                setLoading();
 
-    function buildUrl(kind, icao) {
-      const target = `${API_BASE}/${kind}?ids=${encodeURIComponent(icao)}&format=json`;
-      return `${PROXY_PREFIX}${encodeURIComponent(target)}`;
-    }
+                try {
+                    const [metarRes, tafRes] = await Promise.all([
+                        fetch(METAR_API + icao + '&format=json'),
+                        fetch(TAF_API + icao + '&format=json')
+                    ]);
 
-    async function fetchJson(url) {
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      try {
-        return JSON.parse(text);
-      } catch {
-        return text;
-      }
-    }
+                    if (!metarRes.ok) throw new Error(`METAR API error (${metarRes.status})`);
+                    if (!tafRes.ok) throw new Error(`TAF API error (${tafRes.status})`);
 
-    function pickText(data, kind) {
-      if (typeof data === "string") return data.trim();
+                    const metarData = await metarRes.json();
+                    const tafData = await tafRes.json();
 
-      const candidates = [];
-      if (Array.isArray(data)) candidates.push(...data);
-      if (data && typeof data === "object") {
-        if (Array.isArray(data.data)) candidates.push(...data.data);
-        if (Array.isArray(data[kind])) candidates.push(...data[kind]);
-        if (Array.isArray(data.metar)) candidates.push(...data.metar);
-        if (Array.isArray(data.taf)) candidates.push(...data.taf);
-        if (data.raw_text) candidates.push(data);
-        if (data.text && typeof data.text === "string") candidates.push({ raw_text: data.text });
-      }
+                    // Process METAR
+                    if (Array.isArray(metarData) && metarData.length > 0 && metarData[0].rawOb) {
+                        metarText.textContent = metarData[0].rawOb;
+                        metarText.className = '';
+                    } else {
+                        displayError(metarText, `No METAR found for ${icao}`);
+                    }
 
-      if (!candidates.length) return "No data returned.";
+                    // Process TAF
+                    if (Array.isArray(tafData) && tafData.length > 0 && tafData[0].rawTAF) {
+                        tafText.textContent = tafData[0].rawTAF;
+                        tafText.className = '';
+                    } else {
+                        displayError(tafText, `No TAF found for ${icao}`);
+                    }
 
-      return candidates.map((item) => {
-        if (typeof item === "string") return item;
-        return item.raw_text || item.text || item.report || item.message || JSON.stringify(item, null, 2);
-      }).join("\n\n---\n\n");
-    }
+                } catch (err) {
+                    console.error(err);
+                    displayError(metarText, 'Failed to fetch data. Check connection or ICAO code.');
+                    displayError(tafText, '');
+                    metarIcao.textContent = '';
+                    tafIcao.textContent = '';
+                }
+            }
 
-    function pickMeta(data) {
-      if (!data || typeof data !== "object") return "";
-      const first = Array.isArray(data) ? data[0] : (data.data?.[0] || data.metar?.[0] || data.taf?.[0] || data);
-      if (!first || typeof first !== "object") return "";
-      const parts = [];
-      if (first.station_id) parts.push(`Station: ${first.station_id}`);
-      if (first.icao) parts.push(`ICAO: ${first.icao}`);
-      if (first.observation_time || first.observed || first.valid_time_from || first.issued) {
-        parts.push(`Time: ${first.observation_time || first.observed || first.valid_time_from || first.issued}`);
-      }
-      return parts.join(" • ");
-    }
+            // Event listeners
+            btn.addEventListener('click', fetchWeather);
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    fetchWeather();
+                }
+            });
 
-    async function loadWeather() {
-      const icao = icaoInput.value.trim().toUpperCase();
-      icaoInput.value = icao;
-
-      if (!/^[A-Z]{4}$/.test(icao)) {
-        setStatus("Enter exactly 4 ICAO letters.", "error");
-        return;
-      }
-
-      setLoading(true);
-      setStatus(`Loading ${icao}...`);
-      metarEl.textContent = "Loading...";
-      tafEl.textContent = "Loading...";
-      metarMeta.textContent = "";
-      tafMeta.textContent = "";
-
-      try {
-        const [metarData, tafData] = await Promise.all([
-          fetchJson(buildUrl("metar", icao)),
-          fetchJson(buildUrl("taf", icao))
-        ]);
-
-        metarEl.textContent = pickText(metarData, "metar");
-        tafEl.textContent = pickText(tafData, "taf");
-        metarMeta.textContent = pickMeta(metarData);
-        tafMeta.textContent = pickMeta(tafData);
-        setStatus(`Loaded ${icao}.`, "ok");
-      } catch (err) {
-        console.error(err);
-        setStatus(`Failed to load ${icao}. Check the ICAO code or proxy access.`, "error");
-        metarEl.textContent = "Error loading METAR.";
-        tafEl.textContent = "Error loading TAF.";
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    goBtn.addEventListener("click", loadWeather);
-    icaoInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") loadWeather();
-    });
-
-    icaoInput.focus();
-  </script>
+            // Optional: auto-uppercase and limit length
+            input.addEventListener('input', (e) => {
+                e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+            });
+        })();
+    </script>
 </body>
 </html>
