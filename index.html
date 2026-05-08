@@ -1,242 +1,348 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quick METAR / TAF</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            background: #1a1e24;
-            color: #e0e0e0;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            padding: 2rem;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .container {
-            width: 100%;
-            max-width: 800px;
-        }
-        .search-box {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
-        }
-        input {
-            flex: 1;
-            padding: 14px 18px;
-            font-size: 1.1rem;
-            font-weight: 500;
-            letter-spacing: 1px;
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            color: #f0f6fc;
-            outline: none;
-            transition: border-color 0.15s;
-        }
-        input:focus {
-            border-color: #58a6ff;
-            box-shadow: 0 0 0 2px rgba(88,166,255,0.3);
-        }
-        input::placeholder {
-            color: #6e7681;
-            letter-spacing: 0;
-        }
-        button {
-            padding: 14px 24px;
-            font-size: 1rem;
-            font-weight: 600;
-            background: #238636;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.15s;
-            white-space: nowrap;
-        }
-        button:hover {
-            background: #2ea043;
-        }
-        .panels {
-            display: flex;
-            gap: 20px;
-        }
-        .panel {
-            flex: 1;
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            padding: 20px;
-            min-height: 200px;
-            display: flex;
-            flex-direction: column;
-        }
-        .panel h2 {
-            font-size: 1.2rem;
-            margin-bottom: 12px;
-            color: #58a6ff;
-            border-bottom: 1px solid #21262d;
-            padding-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .panel h2 .icao-tag {
-            background: #21262d;
-            font-size: 0.85rem;
-            font-weight: normal;
-            padding: 2px 8px;
-            border-radius: 4px;
-            color: #c9d1d9;
-            margin-left: auto;
-        }
-        pre {
-            white-space: pre-wrap;
-            word-break: break-word;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 0.95rem;
-            line-height: 1.6;
-            color: #e6edf3;
-            background: transparent;
-            flex: 1;
-        }
-        .error {
-            color: #f85149;
-            font-style: italic;
-        }
-        .loading {
-            color: #6e7681;
-            font-style: italic;
-        }
-        @media (max-width: 600px) {
-            .panels {
-                flex-direction: column;
-            }
-            body {
-                padding: 1rem;
-            }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SkyTAF</title>
+
+  <style>
+    :root {
+      --bg: #09111f;
+      --panel: #111b2e;
+      --panel2: #0d1627;
+      --border: #243552;
+      --text: #e8f1ff;
+      --muted: #9fb0ca;
+      --accent: #57a6ff;
+      --good: #5ee7b7;
+      --bad: #ff6b6b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: radial-gradient(circle at top, #13233f 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+    }
+
+    .sub {
+      color: var(--muted);
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    input {
+      flex: 1;
+      min-width: 200px;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #08111f;
+      color: white;
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    button {
+      padding: 14px 20px;
+      border: none;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #08111f;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button:hover {
+      opacity: 0.95;
+    }
+
+    .status {
+      margin-bottom: 18px;
+      min-height: 20px;
+      color: var(--muted);
+    }
+
+    .status.ok {
+      color: var(--good);
+    }
+
+    .status.error {
+      color: var(--bad);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      min-height: 350px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel h2 {
+      margin: 0;
+      padding: 14px 16px;
+      background: var(--panel2);
+      border-bottom: 1px solid var(--border);
+      font-size: 16px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 16px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 14px;
+      line-height: 1.5;
+      flex: 1;
+      overflow: auto;
+      font-family: Consolas, monospace;
+    }
+
+    @media (max-width: 800px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="search-box">
-            <input type="text" id="icaoInput" placeholder="Enter ICAO code (e.g. KJFK, EGLL)" maxlength="4" autofocus>
-            <button id="fetchBtn">Get Weather</button>
-        </div>
-        <div class="panels">
-            <div class="panel" id="metarPanel">
-                <h2>METAR <span class="icao-tag" id="metarIcao"></span></h2>
-                <pre id="metarText" class="loading">Enter an ICAO code above</pre>
-            </div>
-            <div class="panel" id="tafPanel">
-                <h2>TAF <span class="icao-tag" id="tafIcao"></span></h2>
-                <pre id="tafText" class="loading">Enter an ICAO code above</pre>
-            </div>
-        </div>
+  <div class="wrap">
+    <h1>SkyTAF</h1>
+    <div class="sub">Fast METAR + TAF lookup</div>
+
+    <div class="controls">
+      <input id="icao" type="text" maxlength="4" placeholder="FAOR" />
+      <button id="loadBtn">LOAD</button>
     </div>
 
-    <script>
-        (function() {
-            'use strict';
+    <div id="status" class="status">Ready.</div>
 
-            const input = document.getElementById('icaoInput');
-            const btn = document.getElementById('fetchBtn');
-            const metarText = document.getElementById('metarText');
-            const tafText = document.getElementById('tafText');
-            const metarIcao = document.getElementById('metarIcao');
-            const tafIcao = document.getElementById('tafIcao');
+    <div class="grid">
+      <div class="panel">
+        <h2>METAR</h2>
+        <pre id="metar">Waiting for ICAO...</pre>
+      </div>
 
-            const METAR_API = 'https://aviationweather.gov/api/data/metar?ids=';
-            const TAF_API = 'https://aviationweather.gov/api/data/taf?ids=';
+      <div class="panel">
+        <h2>TAF</h2>
+        <pre id="taf">Waiting for ICAO...</pre>
+      </div>
+    </div>
+  </div>
 
-            function setLoading() {
-                metarText.textContent = 'Loading...';
-                metarText.className = 'loading';
-                tafText.textContent = 'Loading...';
-                tafText.className = 'loading';
-                metarIcao.textContent = '';
-                tafIcao.textContent = '';
-            }
+  <script>
+    // =========================================================
+    // IMPORTANT:
+    // Replace this with YOUR Cloudflare Worker URL
+    // =========================================================
+    const API_BASE = "https://YOUR-WORKER.workers.dev";
 
-            function displayError(element, message) {
-                element.textContent = message;
-                element.className = 'error';
-            }
+    const icaoInput = document.getElementById("icao");
+    const loadBtn = document.getElementById("loadBtn");
+    const metarEl = document.getElementById("metar");
+    const tafEl = document.getElementById("taf");
+    const statusEl = document.getElementById("status");
 
-            async function fetchWeather() {
-                let rawIcao = input.value.trim();
-                if (!rawIcao) {
-                    displayError(metarText, 'Please enter an ICAO code.');
-                    displayError(tafText, '');
-                    metarIcao.textContent = '';
-                    tafIcao.textContent = '';
-                    return;
-                }
+    function setStatus(message, type = "") {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
 
-                const icao = rawIcao.toUpperCase();
-                metarIcao.textContent = icao;
-                tafIcao.textContent = icao;
-                setLoading();
+    async function fetchWeather(type, icao) {
+      const url = `${API_BASE}/${type}?icao=${icao}`;
 
-                try {
-                    const [metarRes, tafRes] = await Promise.all([
-                        fetch(METAR_API + icao + '&format=json'),
-                        fetch(TAF_API + icao + '&format=json')
-                    ]);
+      const response = await fetch(url, {
+        cache: "no-store"
+      });
 
-                    if (!metarRes.ok) throw new Error(`METAR API error (${metarRes.status})`);
-                    if (!tafRes.ok) throw new Error(`TAF API error (${tafRes.status})`);
+      if (!response.ok) {
+        throw new Error(`${type.toUpperCase()} failed`);
+      }
 
-                    const metarData = await metarRes.json();
-                    const tafData = await tafRes.json();
+      return await response.json();
+    }
 
-                    // Process METAR
-                    if (Array.isArray(metarData) && metarData.length > 0 && metarData[0].rawOb) {
-                        metarText.textContent = metarData[0].rawOb;
-                        metarText.className = '';
-                    } else {
-                        displayError(metarText, `No METAR found for ${icao}`);
-                    }
+    function extractRaw(data) {
+      if (!Array.isArray(data) || !data.length) {
+        return "No data returned.";
+      }
 
-                    // Process TAF
-                    if (Array.isArray(tafData) && tafData.length > 0 && tafData[0].rawTAF) {
-                        tafText.textContent = tafData[0].rawTAF;
-                        tafText.className = '';
-                    } else {
-                        displayError(tafText, `No TAF found for ${icao}`);
-                    }
+      return data
+        .map(item => item.raw_text || JSON.stringify(item, null, 2))
+        .join("\n\n--------------------\n\n");
+    }
 
-                } catch (err) {
-                    console.error(err);
-                    displayError(metarText, 'Failed to fetch data. Check connection or ICAO code.');
-                    displayError(tafText, '');
-                    metarIcao.textContent = '';
-                    tafIcao.textContent = '';
-                }
-            }
+    async function loadWeather() {
+      const icao = icaoInput.value.trim().toUpperCase();
+      icaoInput.value = icao;
 
-            // Event listeners
-            btn.addEventListener('click', fetchWeather);
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    fetchWeather();
-                }
-            });
+      if (!/^[A-Z]{4}$/.test(icao)) {
+        setStatus("Invalid ICAO code", "error");
+        return;
+      }
 
-            // Optional: auto-uppercase and limit length
-            input.addEventListener('input', (e) => {
-                e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
-            });
-        })();
-    </script>
+      setStatus(`Loading ${icao}...`);
+      metarEl.textContent = "Loading METAR...";
+      tafEl.textContent = "Loading TAF...";
+
+      try {
+        const [metarData, tafData] = await Promise.all([
+          fetchWeather("metar", icao),
+          fetchWeather("taf", icao)
+        ]);
+
+        metarEl.textContent = extractRaw(metarData);
+        tafEl.textContent = extractRaw(tafData);
+
+        setStatus(`${icao} loaded successfully`, "ok");
+      }
+      catch (err) {
+        console.error(err);
+        setStatus("Failed to fetch weather", "error");
+
+        metarEl.textContent = "ERROR";
+        tafEl.textContent = "ERROR";
+      }
+    }
+
+    loadBtn.addEventListener("click", loadWeather);
+
+    icaoInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        loadWeather();
+      }
+    });
+  </script>
+
+  <!-- ========================================================= -->
+  <!-- CLOUDFLARE WORKER CODE -->
+  <!-- ========================================================= -->
+  <!--
+
+  1. Go to:
+     https://dash.cloudflare.com
+
+  2. Workers & Pages
+
+  3. Create Worker
+
+  4. Delete default code
+
+  5. Paste THIS:
+
+  export default {
+    async fetch(request) {
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: corsHeaders(),
+        });
+      }
+
+      const url = new URL(request.url);
+      const type = url.pathname.replace("/", "").toLowerCase();
+      const icao = (url.searchParams.get("icao") || "").trim().toUpperCase();
+
+      if (!/^[A-Z]{4}$/.test(icao)) {
+        return json({ error: "Invalid ICAO" }, 400);
+      }
+
+      if (!["metar", "taf"].includes(type)) {
+        return json({ error: "Use /metar or /taf" }, 400);
+      }
+
+      const aviationUrl = `https://aviationweather.gov/api/data/${type}?ids=${icao}&format=json`;
+
+      const aviationResponse = await fetch(aviationUrl, {
+        headers: {
+          Accept: "application/json"
+        }
+      });
+
+      const body = await aviationResponse.text();
+
+      return new Response(body, {
+        status: aviationResponse.status,
+        headers: {
+          ...corsHeaders(),
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store"
+        }
+      });
+    }
+  };
+
+  function corsHeaders() {
+    return {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type"
+    };
+  }
+
+  function json(data, status = 200) {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: {
+        ...corsHeaders(),
+        "Content-Type": "application/json"
+      }
+    });
+  }
+
+  6. Deploy Worker
+
+  7. Copy worker URL
+
+     Example:
+     https://skytaf-proxy.username.workers.dev
+
+  8. Replace:
+     https://YOUR-WORKER.workers.dev
+
+     WITH YOUR URL.
+
+  DONE.
+
+  -->
 </body>
 </html>
