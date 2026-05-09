@@ -2,222 +2,41 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>SkyTAF</title>
-
-<style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #0b1220;
-  color: #e8f1ff;
-  padding: 20px;
-}
-
-.container {
-  max-width: 1000px;
-  margin: auto;
-}
-
-h1 {
-  margin-bottom: 10px;
-}
-
-.controls {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-input {
-  flex: 1;
-  min-width: 200px;
-  padding: 12px;
-  font-size: 16px;
-  text-transform: uppercase;
-  border: 1px solid #2a3b5f;
-  background: #0f1726;
-  color: white;
-  border-radius: 8px;
-  outline: none;
-}
-
-button {
-  padding: 12px 16px;
-  background: #4ea1ff;
-  border: none;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.status {
-  margin-bottom: 10px;
-  color: #9fb0ca;
-}
-
-.badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  margin-left: 10px;
-}
-
-.VFR { background: #1f7a4d; }
-.IFR { background: #b02a37; }
-.LIFR { background: #5b2a86; }
-.MVFR { background: #2b5dab; }
-
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-}
-
-.panel {
-  background: #111a2b;
-  border: 1px solid #22314d;
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  min-height: 320px;
-}
-
-.panel h2 {
-  margin: 0;
-  padding: 10px;
-  background: #0d1627;
-  border-bottom: 1px solid #22314d;
-  font-size: 14px;
-}
-
-pre {
-  margin: 0;
-  padding: 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  flex: 1;
-  overflow: auto;
-  font-size: 13px;
-}
-
-.info {
-  padding: 10px;
-  font-size: 13px;
-  color: #9fb0ca;
-  border-top: 1px solid #22314d;
-}
-
-.windArrow {
-  display: inline-block;
-  transform-origin: center;
-  margin-left: 5px;
-}
-
-@media (max-width: 800px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
 </head>
-
 <body>
-<div class="container">
-  <h1>SkyTAF</h1>
+  <input id="icao" placeholder="FAOR" maxlength="4" />
+  <button onclick="loadWeather()">Load</button>
+  <div id="status"></div>
 
-  <div class="controls">
-    <input id="icao" placeholder="FAOR" maxlength="4" />
-    <button onclick="loadWeather()">Load</button>
-  </div>
-
-  <div id="status" class="status">Ready</div>
-
-  <div class="grid">
-    <div class="panel">
-      <h2>METAR</h2>
-      <pre id="metar">---</pre>
-      <div id="metarInfo" class="info"></div>
-    </div>
-
-    <div class="panel">
-      <h2>TAF</h2>
-      <pre id="taf">---</pre>
-      <div id="tafInfo" class="info"></div>
-    </div>
-  </div>
-</div>
+  <pre id="metar">---</pre>
+  <pre id="taf">---</pre>
 
 <script>
 const API_BASE = "https://odd-sun-2389.lategan-rudolph.workers.dev";
-
 const metarEl = document.getElementById("metar");
 const tafEl = document.getElementById("taf");
 const statusEl = document.getElementById("status");
-const metarInfo = document.getElementById("metarInfo");
-const tafInfo = document.getElementById("tafInfo");
-
-function setStatus(msg) {
-  statusEl.textContent = msg;
-}
-
-function windArrow(deg) {
-  return deg != null ? `↑ ${deg}°` : "";
-}
-
-function badge(cat) {
-  if (!cat) return "";
-  return `<span class='badge ${cat}'>${cat}</span>`;
-}
-
-function formatMETAR(m) {
-  if (!m) return "No data";
-  return m.rawOb || "No METAR";
-}
-
-function formatTAF(t) {
-  if (!t) return "No data";
-  return t.rawTAF || "No TAF";
-}
-
-function infoMETAR(m) {
-  if (!m) return "";
-  return `Wind: ${m.wdir ?? "VRB"}° / ${m.wspd ?? 0}kt Vis: ${m.visib ?? "?"} FLT: ${m.fltCat ?? "?"}`;
-}
-
-function infoTAF(t) {
-  if (!t) return "";
-  return `Valid: ${t.bulletinTime || ""}`;
-}
-
-async function fetchData(type, icao) {
-  const res = await fetch(`${API_BASE}/${type}?icao=${icao}`);
-  return await res.json();
-}
 
 async function loadWeather() {
   const icao = document.getElementById("icao").value.trim().toUpperCase();
-  if (!/^[A-Z]{4}$/.test(icao)) return setStatus("Invalid ICAO");
-
-  setStatus("Loading " + icao);
+  if (!/^[A-Z]{4}$/.test(icao)) {
+    statusEl.textContent = "Invalid ICAO";
+    return;
+  }
+  statusEl.textContent = "Loading " + icao;
 
   const [m, t] = await Promise.all([
-    fetchData("metar", icao),
-    fetchData("taf", icao)
+    fetch(API_BASE + "/metar?icao=" + icao).then(r => r.json()),
+    fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json())
   ]);
 
   const metar = Array.isArray(m) ? m[0] : m;
   const taf = Array.isArray(t) ? t[0] : t;
 
-  metarEl.textContent = formatMETAR(metar);
-  tafEl.textContent = formatTAF(taf);
-
-  metarInfo.innerHTML = infoMETAR(metar);
-  tafInfo.innerHTML = infoTAF(taf);
-
-  setStatus("Updated " + icao);
+  metarEl.textContent = (metar && metar.rawOb) ? metar.rawOb : "No METAR";
+  tafEl.textContent = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
+  statusEl.textContent = "Updated " + icao;
 }
 
 setInterval(() => {
@@ -225,6 +44,5 @@ setInterval(() => {
   if (icao.length === 4) loadWeather();
 }, 300000);
 </script>
-
 </body>
 </html>
