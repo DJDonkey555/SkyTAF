@@ -18,19 +18,6 @@ const metarEl = document.getElementById("metar");
 const tafEl = document.getElementById("taf");
 const statusEl = document.getElementById("status");
 
-// If your Cloudflare worker returns an array of objects with fields:
-//   rawOb   – the raw METAR string
-//   obsTime – ISO timestamp of observation (e.g., "2026-05-09T10:00:00Z")
-// then this function filters the last 5 hours.
-function filterLast5Hours(list) {
-  const now = Date.now();
-  const fiveHoursAgo = now - 5 * 60 * 60 * 1000;
-  return list.filter(item => {
-    if (!item.obsTime) return true; // keep if no timestamp (assume recent)
-    return new Date(item.obsTime).getTime() >= fiveHoursAgo;
-  });
-}
-
 async function loadWeather() {
   const icao = document.getElementById("icao").value.trim().toUpperCase();
   if (!/^[A-Z]{4}$/.test(icao)) {
@@ -44,26 +31,14 @@ async function loadWeather() {
     fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json())
   ]);
 
-  // Handle METAR (array or single object)
-  let metarList = [];
-  if (Array.isArray(m)) {
-    metarList = filterLast5Hours(m);
-  } else if (m && m.rawOb) {
-    metarList = [m]; // single object, we don't filter by time (assume it's current)
-  }
-
-  metarEl.textContent = metarList.length
-    ? metarList.map(x => x.rawOb || "").join("\n---\n")
-    : "No METAR in last 5 hours";
-
-  // Handle TAF (single, as before)
+  const metar = Array.isArray(m) ? m[0] : m;
   const taf = Array.isArray(t) ? t[0] : t;
-  tafEl.textContent = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
 
+  metarEl.textContent = (metar && metar.rawOb) ? metar.rawOb : "No METAR";
+  tafEl.textContent = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
   statusEl.textContent = "Updated " + icao;
 }
 
-// Auto-refresh every 5 minutes (300,000 ms)
 setInterval(() => {
   const icao = document.getElementById("icao").value.trim();
   if (icao.length === 4) loadWeather();
