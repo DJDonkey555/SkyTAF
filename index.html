@@ -4,14 +4,27 @@
 <meta charset="UTF-8" />
 <title>SkyTAF</title>
 <style>
-  body { font-family: sans-serif; background: #fff; color: #000; }
-  pre { padding: 10px; border: 1px solid #ccc; background: #f9f9f9; white-space: pre-wrap; }
-  .color-box { display: inline-block; padding: 0 4px; border-radius: 3px; }
-  .vfr { background-color: #c8e6c9; color: #000; }   /* greenish */
-  .mvfr { background-color: #bbdefb; color: #000; }  /* blue   */
-  .ifr { background-color: #ffcdd2; color: #000; }   /* red    */
-  .lifr { background-color: #e1bee7; color: #000; }  /* magenta */
-  /* When plain, no extra class */
+  body { font-family: monospace; background: #fff; color: #000; }
+  pre { 
+    padding: 10px; 
+    border: 1px solid #ccc; 
+    background: #f9f9f9; 
+    white-space: pre-wrap; 
+    font-family: monospace;
+    line-height: 1.6;
+  }
+  /* Colour classes for METAR/TAF tokens */
+  .icao     { color: #1E90FF; font-weight: bold; }   /* DodgerBlue */
+  .type     { color: #A52A2A; font-weight: bold; }   /* Brown for METAR/SPECI label */
+  .time     { color: #FF8C00; }                      /* DarkOrange */
+  .wind     { color: #2E8B57; }                      /* SeaGreen */
+  .vis      { color: #008B8B; }                      /* DarkCyan */
+  .weather  { color: #B22222; font-weight: bold; }   /* FireBrick */
+  .clouds   { color: #708090; }                      /* SlateGray */
+  .temp     { color: #8B008B; }                      /* DarkMagenta */
+  .qnh      { color: #4169E1; }                      /* RoyalBlue */
+  .rmk      { color: #8B4513; }                      /* SaddleBrown */
+  .other    { color: #228B22; }                      /* ForestGreen (fallback) */
 </style>
 </head>
 <body>
@@ -35,61 +48,210 @@ const tafEl = document.getElementById("taf");
 const statusEl = document.getElementById("status");
 const colorToggle = document.getElementById("colorToggle");
 
-// Store the last fetched data so the toggle can re‑render without re‑fetching
-let lastMetars = [];   // array of {rawOb, type}
+let lastMetars = [];   // {rawOb, type}[]
 let lastTaf = "";
 
-// ── Flight category determination ─────────────────
-function getFlightCategory(report) {
-  // report is a string like "FACT 090730Z 01005KT 9999 FEW006 14/10 Q1011 NOSIG"
-  // 1. Visibility extraction
-  let visStatuteMiles = 999; // default high
-  // Look for "9999" (meters, >=10km), "CAVOK", or "XXXX SM"
-  if (/\bCAVOK\b/.test(report)) {
-    visStatuteMiles = 6; // >5 SM
-  } else {
-    // try to find a visibility number followed by SM (e.g., "10SM" or "1 1/2SM")
-    let match = report.match(/(\d+(?:\s+\d+\/\d+)?)\s*SM\b/);
-    if (match) {
-      let visStr = match[1];
-      // handle fractions like "1 1/2"
-      if (visStr.includes(" ")) {
-        let parts = visStr.split(" ");
-        let whole = parseInt(parts[0]);
-        let fraction = parts[1] ? eval(parts[1]) : 0; // careful, but we control input
-        visStatuteMiles = whole + fraction;
-      } else if (visStr.includes("/")) {
-        visStatuteMiles = eval(visStr); // simplest fraction
-      } else {
-        visStatuteMiles = parseInt(visStr);
-      }
-    } else if (/\b\d{4}\b/.test(report)) {
-      // e.g., "9999" – visibility in meters (>= 9999m = 10km+)
-      let m = report.match(/\b(\d{4})\b/);
-      if (m) {
-        let meters = parseInt(m[1]);
-        // convert to SM: 1609.34 m = 1 SM
-        visStatuteMiles = meters >= 5000 ? 6 : meters / 1609.34;
-      }
+// ── Tokenization & colouring for METAR ────────────
+function colorizeMetar(rawOb, type) {
+  // Assemble the full string: "SPECI FACT 090730Z ..." or "METAR FACT ..."
+  const full = `${type} ${rawOb}`;
+  const tokens = [];
+  let remaining = rawOb; // without the pre-pended type
+
+  // Helper to push a token span with given class
+  const pushToken = (text, cls) => {
+    if (text) tokens.push(`<span class="${cls}">${text}</span>`);
+  };
+
+  // Add the type label (METAR or SPECI)
+  tokens.push(`<span class="type">${type}</span>`);
+
+  // Tokenize rawOb using regex. Match components in order.
+  // ICAO: 4 letters
+  const icaoMatch = remaining.match(/^([A-Z]{4})\s/);
+  if (icaoMatch) {
+    pushToken(icaoMatch[1], "icao");
+    remaining = remaining.slice(icaoMatch[0].length);
+  }
+
+  // Date/time: \d{6}Z
+  const timeMatch = remaining.match(/^(\d{6}Z)\s/);
+  if (timeMatch) {
+    pushToken(timeMatch[1], "time");
+    remaining = remaining.slice(timeMatch[0].length);
+  }
+
+  // Wind: either VRB\d{2}KT or \d{5}KT optionally followed by G\d{2}KT and wind direction variation
+  const windMatch = remaining.match(/^((?:VRB|\d{3})\d{2}(?:G\d{2})?KT)(?:\s+(\d{3}V\d{3}))?\s/);
+  if (windMatch) {
+    pushToken(windMatch[1], "wind");
+    if (windMatch[2]) pushToken(windMatch[2], "wind");
+    remaining = remaining.slice(windMatch[0].length);
+  }
+
+  // Visibility: either CAVOK, or \d{4} (meters) or number+SM, or M? (miles) like 10SM
+  let visMatch = remaining.match(/^(CAVOK|\d{4}|(?:\d+\s?\d*\/?\d*)SM)\s/);
+  if (!visMatch) {
+    // Try just "9999" (already covered), also "9999" includes 4 digits.
+    visMatch = remaining.match(/^(\d{4})\s/);
+  }
+  if (visMatch) {
+    pushToken(visMatch[1], "vis");
+    remaining = remaining.slice(visMatch[0].length);
+  }
+
+  // Weather phenomena: can be multiple groups like +TSRA, BR, etc.
+  // Regex: [+-]? (2-letter abbreviations, up to 7 characters total) e.g., +TSRA, BR, HZ, VCSH
+  while (remaining.length > 0) {
+    const wxMatch = remaining.match(/^([+-]?(?:VC)?(?:MI|PR|BC|DR|BL|SH|TS|FZ|DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS|NSW|NSC|NCD|CAVOK)+)\s/);
+    if (wxMatch) {
+      pushToken(wxMatch[1], "weather");
+      remaining = remaining.slice(wxMatch[0].length);
+    } else {
+      break;
     }
   }
 
-  // 2. Ceiling extraction (lowest BKN/OVC)
-  let ceiling = 99999; // no ceiling
-  const cloudMatch = report.match(/\b(BKN|OVC)(\d{3})\b/g);
-  if (cloudMatch) {
-    cloudMatch.forEach(c => {
-      let h = parseInt(c.slice(3)); // hundreds of feet
-      if (h < ceiling) ceiling = h * 100;
-    });
-    // if no BKN/OVC found but there's VV/// or similar? Not handled.
+  // Clouds: can be SKC, FEW, SCT, BKN, OVC followed by 3 digits and optional CB/TCU
+  while (remaining.length > 0) {
+    const cloudMatch = remaining.match(/^((?:FEW|SCT|BKN|OVC|SKC|VV|NSC|NCD)(?:\d{3}(?:CB|TCU)?)?)\s/);
+    if (cloudMatch) {
+      pushToken(cloudMatch[1], "clouds");
+      remaining = remaining.slice(cloudMatch[0].length);
+    } else {
+      break;
+    }
   }
 
-  // Determine category
-  if (ceiling < 500 || visStatuteMiles < 1) return "LIFR";
-  if (ceiling >= 500 && ceiling < 1000 || visStatuteMiles >= 1 && visStatuteMiles < 3) return "IFR";
-  if (ceiling >= 1000 && ceiling <= 3000 || visStatuteMiles >= 3 && visStatuteMiles <= 5) return "MVFR";
-  return "VFR"; // ceiling > 3000 or no ceiling, vis > 5
+  // Temperature/Dewpoint: XX/XX or MXX/MXX
+  const tempMatch = remaining.match(/^((?:M?\d{2})\/(?:M?\d{2}))\s/);
+  if (tempMatch) {
+    pushToken(tempMatch[1], "temp");
+    remaining = remaining.slice(tempMatch[0].length);
+  }
+
+  // QNH: Q[0-9]{4}
+  const qnhMatch = remaining.match(/^(Q\d{4})\s/);
+  if (qnhMatch) {
+    pushToken(qnhMatch[1], "qnh");
+    remaining = remaining.slice(qnhMatch[0].length);
+  }
+
+  // Remarks and other words (NOSIG, TEMPO, RMK, etc.)
+  // Anything else until end: split by spaces and colour as "rmk" or "other"
+  if (remaining.trim().length > 0) {
+    const restTokens = remaining.trim().split(/\s+/);
+    restTokens.forEach(word => {
+      // Classify some known remarks
+      if (/^(NOSIG|TEMPO|BECMG|FM|TL|PROB\d{2}|RMK|AT|WS|TKOF|LDG|RWY|AUTO|COR|CCL|CMG|MM)$/i.test(word)) {
+        pushToken(word, "rmk");
+      } else if (/^\d+$/.test(word) && word.length >= 4) {
+        pushToken(word, "vis"); // fallback visibility numbers
+      } else {
+        pushToken(word, "other");
+      }
+    });
+  }
+
+  return tokens.join(" ");
+}
+
+// ── Tokenization & colouring for TAF ──────────────
+function colorizeTaf(rawTAF) {
+  // TAF is similar to METAR but has different sections.
+  // We'll colorize: "TAF" (if present), ICAO, time, validity period, wind, vis, weather, clouds, temp, etc.
+  // We can reuse a similar tokenizer but with extra handling for "TAF" keyword.
+  let remaining = rawTAF.trim();
+  const tokens = [];
+
+  const pushToken = (text, cls) => {
+    if (text) tokens.push(`<span class="${cls}">${text}</span>`);
+  };
+
+  // Optional "TAF" keyword
+  if (/^TAF\s/.test(remaining)) {
+    pushToken("TAF", "type");
+    remaining = remaining.replace(/^TAF\s/, "");
+  }
+
+  // ICAO
+  const icaoMatch = remaining.match(/^([A-Z]{4})\s/);
+  if (icaoMatch) {
+    pushToken(icaoMatch[1], "icao");
+    remaining = remaining.slice(icaoMatch[0].length);
+  }
+
+  // Validity: \d{6}Z or date/time group like 0904/1012
+  const validityMatch = remaining.match(/^(\d{4}\/\d{4})\s/);
+  if (validityMatch) {
+    pushToken(validityMatch[1], "time");
+    remaining = remaining.slice(validityMatch[0].length);
+  }
+
+  // Wind
+  const windMatch = remaining.match(/^((?:VRB|\d{3})\d{2}(?:G\d{2})?KT)\s/);
+  if (windMatch) {
+    pushToken(windMatch[1], "wind");
+    remaining = remaining.slice(windMatch[0].length);
+  }
+
+  // Visibility
+  let visMatch = remaining.match(/^(CAVOK|\d{4})\s/);
+  if (visMatch) {
+    pushToken(visMatch[1], "vis");
+    remaining = remaining.slice(visMatch[0].length);
+  }
+
+  // Weather (multiple)
+  while (true) {
+    const wxMatch = remaining.match(/^([+-]?(?:VC)?(?:MI|PR|BC|DR|BL|SH|TS|FZ|DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS|NSW|NSC|NCD|CAVOK)+)\s/);
+    if (wxMatch) {
+      pushToken(wxMatch[1], "weather");
+      remaining = remaining.slice(wxMatch[0].length);
+    } else break;
+  }
+
+  // Clouds
+  while (true) {
+    const cloudMatch = remaining.match(/^((?:FEW|SCT|BKN|OVC|SKC|VV|NSC|NCD)(?:\d{3}(?:CB|TCU)?)?)\s/);
+    if (cloudMatch) {
+      pushToken(cloudMatch[1], "clouds");
+      remaining = remaining.slice(cloudMatch[0].length);
+    } else break;
+  }
+
+  // Temperature groups (TX, TN) or just temp/dewpoint
+  // Pattern: TXxx/yyZ or TNxx/yyZ or XX/XX
+  while (true) {
+    const tempGroup = remaining.match(/^((?:TX|TN)?(?:\d{2})\/\d{2}Z?)\s/);
+    if (tempGroup) {
+      pushToken(tempGroup[1], "temp");
+      remaining = remaining.slice(tempGroup[0].length);
+    } else break;
+  }
+
+  // QNH
+  const qnhMatch = remaining.match(/^(Q\d{4})\s/);
+  if (qnhMatch) {
+    pushToken(qnhMatch[1], "qnh");
+    remaining = remaining.slice(qnhMatch[0].length);
+  }
+
+  // Remarks / other tokens
+  if (remaining.trim().length > 0) {
+    const restTokens = remaining.trim().split(/\s+/);
+    restTokens.forEach(word => {
+      if (/^(NOSIG|TEMPO|BECMG|FM|TL|PROB\d{2}|RMK|AT|WS|TKOF|LDG|RWY|AUTO|COR|CCL|CMG|MM)$/i.test(word)) {
+        pushToken(word, "rmk");
+      } else if (/^\d+$/.test(word) && word.length >= 4) {
+        pushToken(word, "vis");
+      } else {
+        pushToken(word, "other");
+      }
+    });
+  }
+
+  return tokens.join(" ");
 }
 
 // ── Render all data according to toggle state ─────
@@ -98,16 +260,11 @@ function renderDisplay() {
 
   // Render METARs
   if (lastMetars.length === 0) {
-    metarsEl.innerHTML = "No METARs available";
+    metarsEl.textContent = "No METARs available";
   } else {
     if (colored) {
-      // Wrap each line in a span with the category class
-      metarsEl.innerHTML = lastMetars.map(item => {
-        const cat = getFlightCategory(item.rawOb);
-        return `<span class="color-box ${cat.toLowerCase()}">${item.type} ${item.rawOb}</span>`;
-      }).join("\n");
+      metarsEl.innerHTML = lastMetars.map(item => colorizeMetar(item.rawOb, item.type)).join("\n");
     } else {
-      // Plain text
       metarsEl.textContent = lastMetars.map(item => `${item.type} ${item.rawOb}`).join("\n");
     }
   }
@@ -117,8 +274,7 @@ function renderDisplay() {
     tafEl.textContent = lastTaf || "No TAF";
   } else {
     if (colored) {
-      const cat = getFlightCategory(lastTaf);
-      tafEl.innerHTML = `<span class="color-box ${cat.toLowerCase()}">${lastTaf}</span>`;
+      tafEl.innerHTML = colorizeTaf(lastTaf);
     } else {
       tafEl.textContent = lastTaf;
     }
@@ -140,7 +296,6 @@ async function loadWeather() {
       fetch(API_BASE + "/recentmetar?icao=" + icao).then(r => r.json())
     ]);
 
-    // Store raw data
     lastMetars = Array.isArray(metarsRes) ? metarsRes : [];
     const taf = Array.isArray(tafRes) ? tafRes[0] : tafRes;
     lastTaf = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
@@ -152,11 +307,10 @@ async function loadWeather() {
     lastTaf = "No TAF";
   }
 
-  // Display according to current toggle state
   renderDisplay();
 }
 
-// Auto‑refresh every 5 minutes
+// Auto-refresh every 5 minutes
 setInterval(() => {
   const icao = document.getElementById("icao").value.trim();
   if (icao.length === 4) loadWeather();
