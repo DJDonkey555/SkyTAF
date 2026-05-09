@@ -31,10 +31,20 @@ async function loadWeather() {
     fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json())
   ]);
 
-  const metar = Array.isArray(m) ? m[0] : m;
-  const taf = Array.isArray(t) ? t[0] : t;
+  // METAR: now an array of objects [{ rawOb: "..." }, ...]
+  const metarList = Array.isArray(m) ? m : [];
+  const latest = metarList[0];
+  const history = metarList.slice(1, 6); // up to 5 previous
 
-  metarEl.textContent = (metar && metar.rawOb) ? metar.rawOb : "No METAR";
+  let metarText = latest && latest.rawOb ? latest.rawOb : "No METAR";
+  if (history.length > 0) {
+    metarText += "\n\n--- Previous METARs ---\n" +
+      history.map(h => h.rawOb).join("\n\n");
+  }
+  metarEl.textContent = metarText;
+
+  // TAF: unchanged
+  const taf = Array.isArray(t) ? t[0] : t;
   tafEl.textContent = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
   statusEl.textContent = "Updated " + icao;
 }
