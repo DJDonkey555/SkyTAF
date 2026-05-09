@@ -3,10 +3,23 @@
 <head>
 <meta charset="UTF-8" />
 <title>SkyTAF</title>
+<style>
+  body { font-family: sans-serif; background: #fff; color: #000; }
+  pre { padding: 10px; border: 1px solid #ccc; background: #f9f9f9; white-space: pre-wrap; }
+  .color-box { display: inline-block; padding: 0 4px; border-radius: 3px; }
+  .vfr { background-color: #c8e6c9; color: #000; }   /* greenish */
+  .mvfr { background-color: #bbdefb; color: #000; }  /* blue   */
+  .ifr { background-color: #ffcdd2; color: #000; }   /* red    */
+  .lifr { background-color: #e1bee7; color: #000; }  /* magenta */
+  /* When plain, no extra class */
+</style>
 </head>
 <body>
   <input id="icao" placeholder="FAOR" maxlength="4" />
   <button onclick="loadWeather()">Load</button>
+  <label style="margin-left: 10px;">
+    <input type="checkbox" id="colorToggle" onchange="renderDisplay()" /> Color code
+  </label>
   <div id="status"></div>
 
   <h3>METARs (last 6 hours)</h3>
@@ -20,7 +33,99 @@ const API_BASE = "https://odd-sun-2389.lategan-rudolph.workers.dev";
 const metarsEl = document.getElementById("metars");
 const tafEl = document.getElementById("taf");
 const statusEl = document.getElementById("status");
+const colorToggle = document.getElementById("colorToggle");
 
+// Store the last fetched data so the toggle can re‑render without re‑fetching
+let lastMetars = [];   // array of {rawOb, type}
+let lastTaf = "";
+
+// ── Flight category determination ─────────────────
+function getFlightCategory(report) {
+  // report is a string like "FACT 090730Z 01005KT 9999 FEW006 14/10 Q1011 NOSIG"
+  // 1. Visibility extraction
+  let visStatuteMiles = 999; // default high
+  // Look for "9999" (meters, >=10km), "CAVOK", or "XXXX SM"
+  if (/\bCAVOK\b/.test(report)) {
+    visStatuteMiles = 6; // >5 SM
+  } else {
+    // try to find a visibility number followed by SM (e.g., "10SM" or "1 1/2SM")
+    let match = report.match(/(\d+(?:\s+\d+\/\d+)?)\s*SM\b/);
+    if (match) {
+      let visStr = match[1];
+      // handle fractions like "1 1/2"
+      if (visStr.includes(" ")) {
+        let parts = visStr.split(" ");
+        let whole = parseInt(parts[0]);
+        let fraction = parts[1] ? eval(parts[1]) : 0; // careful, but we control input
+        visStatuteMiles = whole + fraction;
+      } else if (visStr.includes("/")) {
+        visStatuteMiles = eval(visStr); // simplest fraction
+      } else {
+        visStatuteMiles = parseInt(visStr);
+      }
+    } else if (/\b\d{4}\b/.test(report)) {
+      // e.g., "9999" – visibility in meters (>= 9999m = 10km+)
+      let m = report.match(/\b(\d{4})\b/);
+      if (m) {
+        let meters = parseInt(m[1]);
+        // convert to SM: 1609.34 m = 1 SM
+        visStatuteMiles = meters >= 5000 ? 6 : meters / 1609.34;
+      }
+    }
+  }
+
+  // 2. Ceiling extraction (lowest BKN/OVC)
+  let ceiling = 99999; // no ceiling
+  const cloudMatch = report.match(/\b(BKN|OVC)(\d{3})\b/g);
+  if (cloudMatch) {
+    cloudMatch.forEach(c => {
+      let h = parseInt(c.slice(3)); // hundreds of feet
+      if (h < ceiling) ceiling = h * 100;
+    });
+    // if no BKN/OVC found but there's VV/// or similar? Not handled.
+  }
+
+  // Determine category
+  if (ceiling < 500 || visStatuteMiles < 1) return "LIFR";
+  if (ceiling >= 500 && ceiling < 1000 || visStatuteMiles >= 1 && visStatuteMiles < 3) return "IFR";
+  if (ceiling >= 1000 && ceiling <= 3000 || visStatuteMiles >= 3 && visStatuteMiles <= 5) return "MVFR";
+  return "VFR"; // ceiling > 3000 or no ceiling, vis > 5
+}
+
+// ── Render all data according to toggle state ─────
+function renderDisplay() {
+  const colored = colorToggle.checked;
+
+  // Render METARs
+  if (lastMetars.length === 0) {
+    metarsEl.innerHTML = "No METARs available";
+  } else {
+    if (colored) {
+      // Wrap each line in a span with the category class
+      metarsEl.innerHTML = lastMetars.map(item => {
+        const cat = getFlightCategory(item.rawOb);
+        return `<span class="color-box ${cat.toLowerCase()}">${item.type} ${item.rawOb}</span>`;
+      }).join("\n");
+    } else {
+      // Plain text
+      metarsEl.textContent = lastMetars.map(item => `${item.type} ${item.rawOb}`).join("\n");
+    }
+  }
+
+  // Render TAF
+  if (!lastTaf || lastTaf === "No TAF") {
+    tafEl.textContent = lastTaf || "No TAF";
+  } else {
+    if (colored) {
+      const cat = getFlightCategory(lastTaf);
+      tafEl.innerHTML = `<span class="color-box ${cat.toLowerCase()}">${lastTaf}</span>`;
+    } else {
+      tafEl.textContent = lastTaf;
+    }
+  }
+}
+
+// ── Main fetch function ───────────────────────────
 async function loadWeather() {
   const icao = document.getElementById("icao").value.trim().toUpperCase();
   if (!/^[A-Z]{4}$/.test(icao)) {
@@ -29,29 +134,29 @@ async function loadWeather() {
   }
   statusEl.textContent = "Loading " + icao;
 
-  const [tafData, metarsData] = await Promise.all([
-    fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json()),
-    fetch(API_BASE + "/recentmetar?icao=" + icao).then(r => r.json())
-  ]);
+  try {
+    const [tafRes, metarsRes] = await Promise.all([
+      fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json()),
+      fetch(API_BASE + "/recentmetar?icao=" + icao).then(r => r.json())
+    ]);
 
-  // TAF
-  const taf = Array.isArray(tafData) ? tafData[0] : tafData;
-  tafEl.textContent = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
+    // Store raw data
+    lastMetars = Array.isArray(metarsRes) ? metarsRes : [];
+    const taf = Array.isArray(tafRes) ? tafRes[0] : tafRes;
+    lastTaf = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
 
-  // Combined METAR list (all reports from last 6 hours with type)
-  const metars = Array.isArray(metarsData) ? metarsData : [];
-  if (metars.length > 0) {
-    metarsEl.textContent = metars
-      .map(item => `${item.type} ${item.rawOb}`)
-      .join("\n");
-  } else {
-    metarsEl.textContent = "No METARs available";
+    statusEl.textContent = "Updated " + icao;
+  } catch (e) {
+    statusEl.textContent = "Fetch error";
+    lastMetars = [];
+    lastTaf = "No TAF";
   }
 
-  statusEl.textContent = "Updated " + icao;
+  // Display according to current toggle state
+  renderDisplay();
 }
 
-// Auto-refresh every 5 minutes
+// Auto‑refresh every 5 minutes
 setInterval(() => {
   const icao = document.getElementById("icao").value.trim();
   if (icao.length === 4) loadWeather();
