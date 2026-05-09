@@ -17,43 +17,48 @@
 
 <script>
 const API_BASE = "https://odd-sun-2389.lategan-rudolph.workers.dev";
+const icaoInput = document.getElementById("icao");
 const metarsEl = document.getElementById("metars");
 const tafEl = document.getElementById("taf");
 const statusEl = document.getElementById("status");
 
+function getIcao() {
+  return icaoInput.value.trim().toUpperCase();
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url);
+  return response.json();
+}
+
 async function loadWeather() {
-  const icao = document.getElementById("icao").value.trim().toUpperCase();
+  const icao = getIcao();
+
   if (!/^[A-Z]{4}$/.test(icao)) {
     statusEl.textContent = "Invalid ICAO";
     return;
   }
+
   statusEl.textContent = "Loading " + icao;
 
   const [tafData, metarsData] = await Promise.all([
-    fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json()),
-    fetch(API_BASE + "/recentmetar?icao=" + icao).then(r => r.json())
+    fetchJson(API_BASE + "/taf?icao=" + icao),
+    fetchJson(API_BASE + "/recentmetar?icao=" + icao)
   ]);
 
-  // TAF
   const taf = Array.isArray(tafData) ? tafData[0] : tafData;
-  tafEl.textContent = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
+  tafEl.textContent = taf && taf.rawTAF ? taf.rawTAF : "No TAF";
 
-  // Combined METAR list (all reports from last 6 hours with type)
   const metars = Array.isArray(metarsData) ? metarsData : [];
-  if (metars.length > 0) {
-    metarsEl.textContent = metars
-      .map(item => `${item.type} ${item.rawOb}`)
-      .join("\n");
-  } else {
-    metarsEl.textContent = "No METARs available";
-  }
+  metarsEl.textContent = metars.length
+    ? metars.map(item => `${item.type} ${item.rawOb}`).join("\n")
+    : "No METARs available";
 
   statusEl.textContent = "Updated " + icao;
 }
 
-// Auto-refresh every 5 minutes
 setInterval(() => {
-  const icao = document.getElementById("icao").value.trim();
+  const icao = icaoInput.value.trim();
   if (icao.length === 4) loadWeather();
 }, 300000);
 </script>
