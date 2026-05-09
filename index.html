@@ -9,13 +9,20 @@
   <button onclick="loadWeather()">Load</button>
   <div id="status"></div>
 
+  <h3>Latest METAR</h3>
   <pre id="metar">---</pre>
+
+  <h3>Latest TAF</h3>
   <pre id="taf">---</pre>
+
+  <h3>Past METARs (last ~5 hours)</h3>
+  <pre id="pastmetars">---</pre>
 
 <script>
 const API_BASE = "https://odd-sun-2389.lategan-rudolph.workers.dev";
 const metarEl = document.getElementById("metar");
 const tafEl = document.getElementById("taf");
+const pastMetarsEl = document.getElementById("pastmetars");
 const statusEl = document.getElementById("status");
 
 async function loadWeather() {
@@ -26,19 +33,35 @@ async function loadWeather() {
   }
   statusEl.textContent = "Loading " + icao;
 
-  const [m, t] = await Promise.all([
+  // Fetch all three endpoints in parallel
+  const [m, t, r] = await Promise.all([
     fetch(API_BASE + "/metar?icao=" + icao).then(r => r.json()),
-    fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json())
+    fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json()),
+    fetch(API_BASE + "/recentmetar?icao=" + icao).then(r => r.json())
   ]);
 
+  // Latest METAR
   const metar = Array.isArray(m) ? m[0] : m;
-  const taf = Array.isArray(t) ? t[0] : t;
-
   metarEl.textContent = (metar && metar.rawOb) ? metar.rawOb : "No METAR";
+
+  // TAF
+  const taf = Array.isArray(t) ? t[0] : t;
   tafEl.textContent = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
+
+  // Past METARs
+  const recentList = Array.isArray(r) ? r : [];
+  if (recentList.length > 0) {
+    pastMetarsEl.textContent = recentList
+      .map(item => item.rawOb)
+      .join("\n");
+  } else {
+    pastMetarsEl.textContent = "No recent METARs";
+  }
+
   statusEl.textContent = "Updated " + icao;
 }
 
+// Auto-refresh every 5 minutes
 setInterval(() => {
   const icao = document.getElementById("icao").value.trim();
   if (icao.length === 4) loadWeather();
