@@ -15,7 +15,7 @@
   <h3>Latest TAF</h3>
   <pre id="taf">---</pre>
 
-  <h3>Past METARs (last ~5 hours)</h3>
+  <h3>Past METARs (last ~6 hours)</h3>
   <pre id="pastmetars">---</pre>
 
 <script>
@@ -33,30 +33,19 @@ async function loadWeather() {
   }
   statusEl.textContent = "Loading " + icao;
 
-  // Fetch all three endpoints in parallel
   const [m, t, r] = await Promise.all([
     fetch(API_BASE + "/metar?icao=" + icao).then(r => r.json()),
     fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json()),
     fetch(API_BASE + "/recentmetar?icao=" + icao).then(r => r.json())
   ]);
 
-  // Latest METAR
-  const metar = Array.isArray(m) ? m[0] : m;
-  metarEl.textContent = (metar && metar.rawOb) ? metar.rawOb : "No METAR";
+  metarEl.textContent = (Array.isArray(m) && m[0]?.rawOb) ? m[0].rawOb : "No METAR";
+  tafEl.textContent = (Array.isArray(t) && t[0]?.rawTAF) ? t[0].rawTAF : "No TAF";
 
-  // TAF
-  const taf = Array.isArray(t) ? t[0] : t;
-  tafEl.textContent = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
-
-  // Past METARs
   const recentList = Array.isArray(r) ? r : [];
-  if (recentList.length > 0) {
-    pastMetarsEl.textContent = recentList
-      .map(item => item.rawOb)
-      .join("\n");
-  } else {
-    pastMetarsEl.textContent = "No recent METARs";
-  }
+  pastMetarsEl.textContent = recentList.length
+    ? recentList.map(item => item.rawOb).join("\n")
+    : "No recent METARs";
 
   statusEl.textContent = "Updated " + icao;
 }
