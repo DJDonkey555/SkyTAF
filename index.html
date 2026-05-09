@@ -9,20 +9,16 @@
   <button onclick="loadWeather()">Load</button>
   <div id="status"></div>
 
-  <h3>Latest METAR</h3>
-  <pre id="metar">---</pre>
+  <h3>METARs (last 6 hours)</h3>
+  <pre id="metars">---</pre>
 
   <h3>Latest TAF</h3>
   <pre id="taf">---</pre>
 
-  <h3>Past METARs (last ~6 hours)</h3>
-  <pre id="pastmetars">---</pre>
-
 <script>
 const API_BASE = "https://odd-sun-2389.lategan-rudolph.workers.dev";
-const metarEl = document.getElementById("metar");
+const metarsEl = document.getElementById("metars");
 const tafEl = document.getElementById("taf");
-const pastMetarsEl = document.getElementById("pastmetars");
 const statusEl = document.getElementById("status");
 
 async function loadWeather() {
@@ -33,19 +29,24 @@ async function loadWeather() {
   }
   statusEl.textContent = "Loading " + icao;
 
-  const [m, t, r] = await Promise.all([
-    fetch(API_BASE + "/metar?icao=" + icao).then(r => r.json()),
+  const [tafData, metarsData] = await Promise.all([
     fetch(API_BASE + "/taf?icao=" + icao).then(r => r.json()),
     fetch(API_BASE + "/recentmetar?icao=" + icao).then(r => r.json())
   ]);
 
-  metarEl.textContent = (Array.isArray(m) && m[0]?.rawOb) ? m[0].rawOb : "No METAR";
-  tafEl.textContent = (Array.isArray(t) && t[0]?.rawTAF) ? t[0].rawTAF : "No TAF";
+  // TAF
+  const taf = Array.isArray(tafData) ? tafData[0] : tafData;
+  tafEl.textContent = (taf && taf.rawTAF) ? taf.rawTAF : "No TAF";
 
-  const recentList = Array.isArray(r) ? r : [];
-  pastMetarsEl.textContent = recentList.length
-    ? recentList.map(item => item.rawOb).join("\n")
-    : "No recent METARs";
+  // Combined METAR list (all reports from last 6 hours with type)
+  const metars = Array.isArray(metarsData) ? metarsData : [];
+  if (metars.length > 0) {
+    metarsEl.textContent = metars
+      .map(item => `${item.type} ${item.rawOb}`)
+      .join("\n");
+  } else {
+    metarsEl.textContent = "No METARs available";
+  }
 
   statusEl.textContent = "Updated " + icao;
 }
