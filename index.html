@@ -5,21 +5,18 @@
 <title>SkyTAF</title>
 </head>
 <body>
+  <input id="icao" placeholder="FAOR" maxlength="4" />
+  <button onclick="loadWeather()">Load</button>
+  <div id="status"></div>
 
-<input id="icao" placeholder="FAOR" maxlength="4" />
-<button onclick="loadWeather()">Load</button>
+  <h3>METARs (last 6 hours)</h3>
+  <pre id="metars">---</pre>
 
-<div id="status"></div>
-
-<h3>METARs</h3>
-<pre id="metars">---</pre>
-
-<h3>TAF</h3>
-<pre id="taf">---</pre>
+  <h3>Latest TAF</h3>
+  <pre id="taf">---</pre>
 
 <script>
 const API_BASE = "https://odd-sun-2389.lategan-rudolph.workers.dev";
-
 const icaoInput = document.getElementById("icao");
 const metarsEl = document.getElementById("metars");
 const tafEl = document.getElementById("taf");
@@ -29,30 +26,11 @@ function getIcao() {
   return icaoInput.value.trim().toUpperCase();
 }
 
-/* =========================
-   FETCH WITH TIMEOUT
-========================= */
-async function fetchJson(url, timeout = 12000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      cache: "no-store"
-    });
-
-    if (!res.ok) throw new Error("HTTP " + res.status);
-
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+async function fetchJson(url) {
+  const response = await fetch(url);
+  return response.json();
 }
 
-/* =========================
-   MAIN LOAD
-========================= */
 async function loadWeather() {
   const icao = getIcao();
 
@@ -62,41 +40,27 @@ async function loadWeather() {
   }
 
   statusEl.textContent = "Loading " + icao;
-  metarsEl.textContent = "---";
-  tafEl.textContent = "---";
 
-  try {
-    const [tafRes, metarRes] = await Promise.allSettled([
-      fetchJson(`${API_BASE}/taf?icao=${icao}`),
-      fetchJson(`${API_BASE}/recentmetar?icao=${icao}`)
-    ]);
+  const [tafData, metarsData] = await Promise.all([
+    fetchJson(API_BASE + "/taf?icao=" + icao),
+    fetchJson(API_BASE + "/recentmetar?icao=" + icao)
+  ]);
 
-    // TAF
-    if (tafRes.status === "fulfilled") {
-      const t = tafRes.value;
-      tafEl.textContent = Array.isArray(t) ? t[0]?.rawTAF || "No TAF" : "No TAF";
-    } else {
-      tafEl.textContent = "TAF failed";
-    }
+  const taf = Array.isArray(tafData) ? tafData[0] : tafData;
+  tafEl.textContent = taf && taf.rawTAF ? taf.rawTAF : "No TAF";
 
-    // METAR
-    if (metarRes.status === "fulfilled") {
-      const m = metarRes.value;
-      metarsEl.textContent = Array.isArray(m)
-        ? m.map(x => `${x.type} ${x.rawOb}`).join("\n")
-        : "No METARs";
-    } else {
-      metarsEl.textContent = "METAR failed";
-    }
+  const metars = Array.isArray(metarsData) ? metarsData : [];
+  metarsEl.textContent = metars.length
+    ? metars.map(item => `${item.type} ${item.rawOb}`).join("\n")
+    : "No METARs available";
 
-    statusEl.textContent = "Updated " + icao;
-
-  } catch (err) {
-    console.error(err);
-    statusEl.textContent = "Error loading " + icao;
-  }
+  statusEl.textContent = "Updated " + icao;
 }
-</script>
 
+setInterval(() => {
+  const icao = icaoInput.value.trim();
+  if (icao.length === 4) loadWeather();
+}, 300000);
+</script>
 </body>
 </html>
